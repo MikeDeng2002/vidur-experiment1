@@ -6,7 +6,7 @@ from typing import Any, List
 import pandas as pd
 import ray
 import torch
-from sarathi.config import ParallelConfig
+import sarathi.config
 from sarathi.model_executor.attention import AttentionBackend
 from tqdm import tqdm
 

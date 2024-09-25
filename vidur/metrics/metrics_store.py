@@ -233,7 +233,7 @@ class MetricsStore:
                     )
                 )
                 self._replica_mfu[replica_idx][stage_idx].put(0, 0)
-
+#update the utility and busy time for each replica in each pipeline_stage
         self._init_wandb()
 
     def _init_wandb(self):
@@ -340,7 +340,9 @@ class MetricsStore:
                 y_axis_label=TIME_STR_MS,
                 y_cumsum=False,
             )
+            #figure out the mean processing time for each batch in each batch_metrics_count_distribution_per_batch
         operations_dataseries_list = list(self._operation_metrics_per_batch.values())
+        #split by each batch
         self._save_as_csv(
             dataseries_list=operations_dataseries_list,
             key_to_join=BATCH_ID_STR,

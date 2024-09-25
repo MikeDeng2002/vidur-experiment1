@@ -28,7 +28,7 @@ class VLLMReplicaScheduler(BaseReplicaScheduler):
                 self.free(request.id)
             else:
                 self._preempted_requests.append(request)
-
+#update the preempted_requests
     def _can_allocate_request(self, request: Request) -> bool:
         if request.id not in self._allocation_map:
             # new request
@@ -44,7 +44,7 @@ class VLLMReplicaScheduler(BaseReplicaScheduler):
 
         # vllm requires at least one block to be available
         return self._config.num_blocks - self._num_allocated_blocks >= 1
-
+#check whether the replica has enough memory for nprefill_token for next request
     def _allocate_request(self, request: Request) -> None:
         if request.id not in self._allocation_map:
             # new request
@@ -64,7 +64,7 @@ class VLLMReplicaScheduler(BaseReplicaScheduler):
             return
 
         self.allocate(request.id, 1)
-
+#
     def _get_next_batch(self) -> Batch:
         requests = []
         num_tokens = []
