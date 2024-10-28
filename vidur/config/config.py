@@ -73,7 +73,7 @@ class TraceRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 @dataclass
 class PoissonRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
     qps: float = field(
-        default=0.5,
+        default=10,
         metadata={"help": "Queries per second for Poisson Request Interval Generator."},
     )
 
@@ -83,6 +83,7 @@ class PoissonRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 
 
 @dataclass
+
 class GammaRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
     qps: float = field(
         default=0.2,
@@ -146,7 +147,7 @@ class ZipfRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
         metadata={"help": "Minimum tokens for Zipf Request Length Generator."},
     )
     prefill_to_decode_ratio: float = field(
-        default=20.0,
+        default=10.0,
         metadata={"help": "Prefill to decode ratio for Zipf Request Length Generator."},
     )
 
@@ -162,7 +163,7 @@ class UniformRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
         metadata={"help": "Minimum tokens for Uniform Request Length Generator."},
     )
     prefill_to_decode_ratio: float = field(
-        default=20.0,
+        default=1.0,
         metadata={
             "help": "Prefill to decode ratio for Uniform Request Length Generator."
         },
@@ -443,11 +444,11 @@ class ReplicaConfig:
         metadata={"help": "Tensor parallel size."},
     )
     device: str = field(
-        default="a100",
+        default="a40",
         metadata={"help": "Device."},
     )
     network_device: str = field(
-        default="a100_pairwise_nvlink",
+        default="a40_pairwise_nvlink",
         metadata={"help": "Network device."},
     )
 

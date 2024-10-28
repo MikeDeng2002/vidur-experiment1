@@ -63,7 +63,7 @@ class DataSeries:
         return self._last_data_y
 
     # convert list of x, y datapoints to a pandas dataframe
-    def _tos_df(self):
+    def _to_df(self):
         return pd.DataFrame(self._data_series, columns=[self._x_name, self._y_name])
 
     # add a new x, y datapoint as an incremental (delta) update to

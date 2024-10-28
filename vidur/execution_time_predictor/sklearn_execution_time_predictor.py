@@ -816,7 +816,7 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
             * self._replica_config.tensor_parallel_size**1.25
         )
 
-    def _get_pipeline_parallel_communication_time(self, batch: Batch) -> float:
+    def  _get_pipeline_parallel_communication_time(self, batch: Batch) -> float:
         try:
             return self._predictions["send_recv"][(batch._total_num_tokens_rounded,)]
         except KeyError as e:
