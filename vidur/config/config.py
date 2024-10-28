@@ -71,6 +71,7 @@ class TraceRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 
 
 @dataclass
+
 class PoissonRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
     qps: float = field(
         default=10,
