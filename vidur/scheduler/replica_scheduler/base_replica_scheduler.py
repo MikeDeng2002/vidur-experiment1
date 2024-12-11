@@ -15,6 +15,7 @@ from vidur.scheduler.utils.memory_planner import MemoryPlanner
 logger = init_logger(__name__)
 
 
+
 class BaseReplicaScheduler(ABC):
     def __init__(
         self,
@@ -30,7 +31,7 @@ class BaseReplicaScheduler(ABC):
         self._request_generator_config = request_generator_config
         self._replica_id = replica.id
         self._num_stages = num_stages
-
+        self._flops = replica._device_config.fp16_tflops
         self._max_blocks_per_sequence = (
             self._request_generator_config.max_tokens // self._config.block_size
         )
@@ -46,6 +47,7 @@ class BaseReplicaScheduler(ABC):
             self._config.batch_size_cap,
         )
 
+       
         logger.debug(
             f"Obtained max batch size of {self._max_batch_size} for replica {self._replica_id}"
         )

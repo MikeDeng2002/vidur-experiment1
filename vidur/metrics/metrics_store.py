@@ -57,7 +57,7 @@ class MetricsStore:
         # copy config
         self._num_replicas = self._simulation_config.cluster_config.num_replicas
         self._num_pipeline_stages = (
-            self._simulation_config.cluster_config.replica_config.num_pipeline_stages
+            self._simulation_config.cluster_config.replica_configs[0].num_pipeline_stages
         )
 
         # Initialise request metrics
@@ -199,7 +199,7 @@ class MetricsStore:
         self._replica_busy_time = []
         self._replica_mfu = []
         self._mfu_calculator = MFUCalculator(
-            self._simulation_config.cluster_config.replica_config
+            self._simulation_config.cluster_config.replica_configs[0]
         )
 
         for replica_idx in range(self._num_replicas):

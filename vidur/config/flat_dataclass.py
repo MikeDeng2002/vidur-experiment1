@@ -97,16 +97,23 @@ def create_from_cli_args(cls) -> Any:
         field_type = field.type
         help_text = cls.metadata_mapping[field.name].get("help", None)
 
+        if hasattr(field_type, "__dataclass_fields__") or is_subclass(field_type, BasePolyConfig):
+            continue
+        
         if is_list(field.type):
-            assert is_composed_of_primitives(field.type)
-            field_type = get_args(field.type)[0]
-            if is_primitive_type(field_type):
-                nargs = "+"
+            if not is_composed_of_primitives(field.type):
+                field_type = json.loads
+            else:
+                field_type = get_args(field.type)[0]
+                if is_primitive_type(field_type):
+                    nargs = "+"
+                else:
+                    field_type = json.loads
+        elif is_dict(field.type):
+            if not is_composed_of_primitives(field.type):
+                field_type = json.loads
             else:
                 field_type = json.loads
-        elif is_dict(field.type):
-            assert is_composed_of_primitives(field.type)
-            field_type = json.loads
         elif is_bool(field.type):
             action = BooleanOptionalAction
 

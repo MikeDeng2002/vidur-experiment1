@@ -4,8 +4,8 @@ from vidur.config import ReplicaConfig
 
 
 class ParamCounter:
-    def __init__(self, replica_config: ReplicaConfig) -> None:
-        self._replica_config = replica_config
+    def __init__(self, replica_config):
+        self._replica_config = replica_config[0] if isinstance(replica_config, list) else replica_config
         self._model_config = self._replica_config.model_config
 
         assert (

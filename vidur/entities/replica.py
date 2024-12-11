@@ -1,4 +1,5 @@
 from math import ceil
+import copy
 
 from vidur.config import BaseRequestGeneratorConfig, ReplicaConfig
 from vidur.entities.base_entity import BaseEntity
@@ -14,13 +15,16 @@ class Replica(BaseEntity):
         generator_config: BaseRequestGeneratorConfig,
     ) -> None:
         self._id = Replica.generate_id()
-
-        self._replica_config = replica_config
+        self._replica_config = copy.deepcopy(replica_config)
+        logger.info(f"Initializing Replica {self._id}")
+        logger.info(f"  Device: {self._replica_config.device}")
+        
         self._model_config = replica_config.model_config
         self._device_config = replica_config.device_config
         self._generator_config = generator_config
 
         assert (
+        
             self._model_config.num_layers % self._replica_config.num_pipeline_stages
             == 0
         )

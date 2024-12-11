@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+import logging
+from typing import Tuple
+import copy
 
 from vidur.config import (
     BaseExecutionTimePredictorConfig,
@@ -7,6 +10,8 @@ from vidur.config import (
     ReplicaConfig,
 )
 from vidur.entities import Batch, ExecutionTime
+
+logger = logging.getLogger(__name__)
 
 
 class BaseExecutionTimePredictor(ABC):
@@ -18,16 +23,34 @@ class BaseExecutionTimePredictor(ABC):
         metrics_config: MetricsConfig,
     ) -> None:
         self._config = predictor_config
-        self._replica_config = replica_config
-        self._model_config = replica_config.model_config
+        
+        # 处理和验证replica配置
+    
+        if isinstance(replica_config, list):
+            logger.info(f"Received replica_config list with {len(replica_config)} items")
+            replica_config = replica_config[0]
+        
+        # 深拷贝配置以防止修改
+        self._replica_config = copy.deepcopy(replica_config)
+        logger.info(f"Using device: {self._replica_config.device}")
+        
+        # 验证设备类型
+        if not self._replica_config.device:
+            raise ValueError("Device type not specified in replica config")
+        
+        self._model_config = self._replica_config.model_config
 
-        # get configs
+
+        # 获取其他配置
         self._replica_scheduler_provider = str(replica_scheduler_config.get_type())
         self._block_size = replica_scheduler_config.block_size
         self._cache_dir = metrics_config.cache_dir
+        
+        # 计算每个pipeline stage的层数
         self._num_layers_per_pipeline_stage = (
             self._model_config.num_layers // self._replica_config.num_pipeline_stages
         )
+        
 
     def get_execution_time(self, batch: Batch, pipeline_stage: int) -> ExecutionTime:
         if pipeline_stage == self._replica_config.num_pipeline_stages - 1:
@@ -142,3 +165,10 @@ class BaseExecutionTimePredictor(ABC):
     @abstractmethod
     def _get_add_layer_act_execution_time(self, batch: Batch) -> float:
         pass
+
+    def _get_input_files(self) -> Tuple[str, str, str, str, str]:
+      
+        input_files = [...]
+        for i in range(len(input_files)):
+            input_files[i] = input_files[i].replace("{DEVICE}", self._replica_config.device)
+            logger.info(f"Input file {i}: {input_files[i]}")

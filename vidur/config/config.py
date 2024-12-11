@@ -39,7 +39,7 @@ class BaseRequestLengthGeneratorConfig(BasePolyConfig):
         metadata={"help": "Seed for the random number generator."},
     )
     max_tokens: int = field(
-        default=4096,
+        default=5120,
         metadata={"help": "Maximum tokens."},
     )
 
@@ -73,7 +73,7 @@ class TraceRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 @dataclass
 class PoissonRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
     qps: float = field(
-        default=0.5,
+        default=30,
         metadata={"help": "Queries per second for Poisson Request Interval Generator."},
     )
 
@@ -110,7 +110,7 @@ class StaticRequestIntervalGeneratorConfig(BaseRequestIntervalGeneratorConfig):
 @dataclass
 class TraceRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
     trace_file: str = field(
-        default="data/processed_traces/sharegpt_8k_filtered_stats_llama2_tokenizer.csv",
+        default="/Users/dengtianze/Documents/GitHub/vidur/data/processed_traces/arxiv_summarization_stats_llama2_tokenizer_filtered_v2.csv",
         metadata={"help": "Path to the trace request length generator file."},
     )
     prefill_scale_factor: float = field(
@@ -158,11 +158,11 @@ class ZipfRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
 @dataclass
 class UniformRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
     min_tokens: int = field(
-        default=1024,
+        default=0,
         metadata={"help": "Minimum tokens for Uniform Request Length Generator."},
     )
     prefill_to_decode_ratio: float = field(
-        default=20.0,
+        default=1,
         metadata={
             "help": "Prefill to decode ratio for Uniform Request Length Generator."
         },
@@ -176,11 +176,11 @@ class UniformRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
 @dataclass
 class FixedRequestLengthGeneratorConfig(BaseRequestLengthGeneratorConfig):
     prefill_tokens: int = field(
-        default=2048,
+        default=100,
         metadata={"help": "Prefill tokens for Fixed Request Length Generator."},
     )
     decode_tokens: int = field(
-        default=512,
+        default=2048,
         metadata={"help": "Decode tokens for Fixed Request Length Generator."},
     )
 
@@ -200,7 +200,7 @@ class BaseRequestGeneratorConfig(BasePolyConfig):
 @dataclass
 class SyntheticRequestGeneratorConfig(BaseRequestGeneratorConfig):
     length_generator_config: BaseRequestLengthGeneratorConfig = field(
-        default_factory=FixedRequestLengthGeneratorConfig,
+        default_factory=TraceRequestLengthGeneratorConfig,
         metadata={"help": "Length generator config for Synthetic Request Generator."},
     )
     interval_generator_config: BaseRequestIntervalGeneratorConfig = field(
@@ -208,7 +208,7 @@ class SyntheticRequestGeneratorConfig(BaseRequestGeneratorConfig):
         metadata={"help": "Interval generator config for Synthetic Request Generator."},
     )
     num_requests: Optional[int] = field(
-        default=128,
+        default=12800,
         metadata={"help": "Number of requests for Synthetic Request Generator."},
     )
     duration: Optional[float] = field(
@@ -453,15 +453,9 @@ class ReplicaConfig:
 
     def __post_init__(self):
         self.world_size = self.num_pipeline_stages * self.tensor_parallel_size
-        self.model_config: BaseModelConfig = BaseModelConfig.create_from_name(
-            self.model_name
-        )
-        self.device_config: BaseDeviceSKUConfig = (
-            BaseDeviceSKUConfig.create_from_type_string(self.device)
-        )
-        self.node_config: BaseNodeSKUConfig = BaseNodeSKUConfig.create_from_type_string(
-            self.network_device
-        )
+        self.model_config = BaseModelConfig.create_from_name(self.model_name)
+        self.device_config = BaseDeviceSKUConfig.create_from_type_string(self.device)
+        self.node_config = BaseNodeSKUConfig.create_from_type_string(self.network_device)
 
 
 @dataclass
@@ -489,6 +483,23 @@ class LORGlobalSchedulerConfig(BaseGlobalSchedulerConfig):
     def get_type():
         return GlobalSchedulerType.LOR
 
+@dataclass
+class LOR1GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LOR1 
+
+@dataclass
+class LOR2GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LOR2
+
+@dataclass
+class LOR3GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LOR3
 
 @dataclass
 class BaseExecutionTimePredictorConfig(BasePolyConfig):
@@ -606,21 +617,59 @@ class RandomForrestExecutionTimePredictorConfig(BaseExecutionTimePredictorConfig
         return ExecutionTimePredictorType.RANDOM_FORREST
 
 
+def default_replica_configs():
+    logger.info("Creating default replica configs")
+    configs = []
+    
+   
+
+    configs.extend([
+        ReplicaConfig(
+            device="a100",
+            network_device="a100_pairwise_nvlink"
+        ) for _ in range(20)
+    ])
+    
+    
+
+    
+    #configs.extend([
+    #    ReplicaConfig(
+    #        device="a40",
+       #     network_device="a40_pairwise_nvlink"
+    #    ) for _ in range(10)
+    #])
+    
+    #configs.extend([
+      #  ReplicaConfig(
+      #      device="h100",
+      #      network_device="h100_pairwise_nvlink"
+    #    ) for _ in range(5)
+    #])
+
+    
+    
+   
+    
+    return configs
 @dataclass
 class ClusterConfig:
-    num_replicas: int = field(
-        default=1,
-        metadata={"help": "Number of replicas."},
+    replica_configs: List[ReplicaConfig] = field(
+        default_factory=default_replica_configs,
+        metadata={"help": "List of replica configurations, can be heterogeneous"}
     )
-    replica_config: ReplicaConfig = field(default_factory=ReplicaConfig)
     global_scheduler_config: BaseGlobalSchedulerConfig = field(
-        default_factory=RoundRobinGlobalSchedulerConfig,
+        default_factory=LORGlobalSchedulerConfig,
         metadata={"help": "Global scheduler config."},
     )
     replica_scheduler_config: BaseReplicaSchedulerConfig = field(
         default_factory=SarathiSchedulerConfig,
         metadata={"help": "Replica scheduler config."},
     )
+
+    def __post_init__(self):
+       
+        self.num_replicas = len(self.replica_configs)
 
 
 @dataclass
@@ -655,23 +704,26 @@ class SimulationConfig(ABC):
     )
 
     def __post_init__(self):
+        logger.info("Initializing SimulationConfig")
+        logger.info(f"Number of replicas in cluster config: {len(self.cluster_config.replica_configs)}")
+        
+        
+        
         self.write_config_to_file()
 
     @classmethod
     def create_from_cli_args(cls):
+        logger.info("Creating SimulationConfig from CLI args")
         flat_config = create_flat_dataclass(cls).create_from_cli_args()
         instance = flat_config.reconstruct_original_dataclass()
         instance.__flat_config__ = flat_config
+        
+        logger.info("SimulationConfig created successfully")
         return instance
 
-    def to_dict(self):
-        if not hasattr(self, "__flat_config__"):
-            logger.warning("Flat config not found. Returning the original config.")
-            return self.__dict__
-
-        return self.__flat_config__.__dict__
-
     def write_config_to_file(self):
+        logger.info(f"Writing config to {self.metrics_config.output_dir}/config.json")
         config_dict = dataclass_to_dict(self)
         with open(f"{self.metrics_config.output_dir}/config.json", "w") as f:
             json.dump(config_dict, f, indent=4)
+        logger.info("Config file written successfully")

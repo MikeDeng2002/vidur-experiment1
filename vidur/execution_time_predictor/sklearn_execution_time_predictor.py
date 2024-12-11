@@ -43,7 +43,13 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
         )
         os.makedirs(self._cache_dir, exist_ok=True)
 
-        # These overheads are only for GQA models
+        # 在访问 num_pipeline_stages 之前确保 replica_config 是正确的类型
+        if isinstance(replica_config, list):
+            self._replica_config = replica_config[0]  # 获取第一个配置对象
+        else:
+            self._replica_config = replica_config
+
+        # 这些overheads只针对GQA模型
         self._attention_prefill_batching_overhead_fraction = (
             (self._config.attention_prefill_batching_overhead_fraction)
             if self._model_config.num_q_heads > self._model_config.num_kv_heads
@@ -83,6 +89,18 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
 
         self._models = self._train_models()
         self._predictions = self._predict_from_models()
+
+        # 添加调试信息
+        print(f"replica_config type: {type(self._replica_config)}")
+        print(f"replica_config content: {self._replica_config}")
+        
+        # 假设 replica_config 是一个列表，我们需要获取第一个配置对象
+        if isinstance(replica_config, list):
+            self._replica_config = replica_config[0]  # 获取第一个配置对象
+        else:
+            self._replica_config = replica_config
+            
+        self._replica_config.num_pipeline_stages  # 导致了错误
 
     def _get_input_files(self) -> Tuple[str, str, str, str, str]:
         input_files = [
@@ -163,12 +181,18 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
             )
         ]
 
-    def _load_all_reduce_df(self, file_path: str) -> pd.DataFrame:
-        df = self._read_input_file(file_path)
+    def _load_all_reduce_df(self, input_file):
+        df = pd.read_csv(input_file)
+        
+        # 检查必需的列是否存在
+        if 'collective' not in df.columns:
+            print(f"Warning: Required column 'collective' not found in {input_file}")
+            # 可以返回空DataFrame或使用默认值
+            return pd.DataFrame()
+        
         return df[
-            (df["num_workers"] == self._replica_config.tensor_parallel_size)
+            (df["collective"] == "all_reduce")
             & (df["devices_per_node"] == self._replica_config.tensor_parallel_size)
-            & (df["collective"] == "all_reduce")
         ]
 
     def _load_send_recv_df(self, file_path: str) -> pd.DataFrame:
@@ -220,6 +244,14 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
     def _get_all_reduce_df_with_derived_features(
         self, df: pd.DataFrame
     ) -> pd.DataFrame:
+        # 首先检查列是否存在
+        if 'size' not in df.columns:
+            # 根据实际情况选择正确的列名
+            # 例如: 如果列名是 'message_size'
+            df = df.rename(columns={'message_size': 'size'})
+            # 或者如果需要计算得出size列
+            # df['size'] = ... # 计算size的逻辑
+        
         df_with_derived_features = df.copy()
         # convert bytes to num tokens
         # each token is of size 2 * h bytes
@@ -301,8 +333,12 @@ class SklearnExecutionTimePredictor(BaseExecutionTimePredictor):
                 return
 
             logger.debug(f"Found model {model_name} in cache")
-            model = pickle.load(open(cache_file, "rb"))
-            return model
+            try:
+                model = pickle.load(open(cache_file, "rb"))
+                return model
+            except (ModuleNotFoundError, ImportError):
+                # 如果加载失败，返回 None 以触发重新训练
+                return None
 
     def _store_model_in_cache(
         self, model_name: str, model_hash: str, model: BaseEstimator
