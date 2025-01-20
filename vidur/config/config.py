@@ -239,7 +239,7 @@ class TraceRequestGeneratorConfig(BaseRequestGeneratorConfig):
         metadata={"help": "Decode scale factor for the trace request generator."},
     )
     time_scale_factor: float = field(
-        default=1.0,
+        default=0.3,
         metadata={"help": "Time scale factor for the trace request generator."},
     )
     max_tokens: int = field(
@@ -427,16 +427,16 @@ class MetricsConfig:
 @dataclass
 class ReplicaConfig:
     model_name: str = field(
-        default="meta-llama/Llama-2-7b-hf",
+        default="meta-llama/Llama-2-70b-hf",
         metadata={"help": "Model name."},
     )
     memory_margin_fraction: float = field(
         default=0.1,
         metadata={"help": "Memory margin fraction."},
     )
-    num_pipeline_stages: int = field(
+    num_pipeline_stages: int = field(  # 注意这里是 pipeline_parallel_size
         default=1,
-        metadata={"help": "Number of pipeline stages."},
+        metadata={"help": "Pipeline parallel size"}
     )
     tensor_parallel_size: int = field(
         default=1,
@@ -500,6 +500,15 @@ class LOR3GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
     @staticmethod
     def get_type():
         return GlobalSchedulerType.LOR3
+class LOR4GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LOR4 
+
+class LOR5GlobalSchedulerConfig(BaseGlobalSchedulerConfig):
+    @staticmethod
+    def get_type():
+        return GlobalSchedulerType.LOR5 
 
 @dataclass
 class BaseExecutionTimePredictorConfig(BasePolyConfig):
@@ -617,59 +626,73 @@ class RandomForrestExecutionTimePredictorConfig(BaseExecutionTimePredictorConfig
         return ExecutionTimePredictorType.RANDOM_FORREST
 
 
-def default_replica_configs():
+def default_replica_configs(a100_count: int = 20, h100_count: int = 5, 
+                          tensor_parallel_size: int = 2, pipeline_size: int = 1):
     logger.info("Creating default replica configs")
     configs = []
     
-   
-
     configs.extend([
         ReplicaConfig(
             device="a100",
-            network_device="a100_pairwise_nvlink"
-        ) for _ in range(20)
+            network_device="a100_pairwise_nvlink",
+            tensor_parallel_size=tensor_parallel_size,
+            num_pipeline_stages=pipeline_size  # 使用正确的参数名
+        ) for _ in range(a100_count)
     ])
     
-    
-
-    
-    #configs.extend([
-    #    ReplicaConfig(
-    #        device="a40",
-       #     network_device="a40_pairwise_nvlink"
-    #    ) for _ in range(10)
-    #])
-    
-    #configs.extend([
-      #  ReplicaConfig(
-      #      device="h100",
-      #      network_device="h100_pairwise_nvlink"
-    #    ) for _ in range(5)
-    #])
-
-    
-    
-   
+    configs.extend([
+        ReplicaConfig(
+            device="h100",
+            network_device="h100_pairwise_nvlink",
+            tensor_parallel_size=tensor_parallel_size,
+            num_pipeline_stages=pipeline_size  # 使用正确的参数名
+        ) for _ in range(h100_count)
+    ])
     
     return configs
+
 @dataclass
 class ClusterConfig:
-    replica_configs: List[ReplicaConfig] = field(
-        default_factory=default_replica_configs,
-        metadata={"help": "List of replica configurations, can be heterogeneous"}
+    a100_count: int = field(
+        default=6,
+        metadata={"help": "Number of A100 GPUs"}
     )
+    h100_count: int = field(
+        default=12,
+        metadata={"help": "Number of H100 GPUs"}
+    )
+    tensor_parallel_size: int = field(
+        default=2,
+        metadata={"help": "Tensor parallel size for all replicas"}
+    )
+    pipeline_size: int = field(
+        default=2,
+        metadata={"help": "Pipeline parallel size for all replicas"}
+    )
+    replica_configs: List[ReplicaConfig] = field(
+        default_factory=lambda: default_replica_configs(),
+        metadata={"help": "List of replica configurations"}
+    )
+
     global_scheduler_config: BaseGlobalSchedulerConfig = field(
-        default_factory=LORGlobalSchedulerConfig,
+        default_factory=RoundRobinGlobalSchedulerConfig,
         metadata={"help": "Global scheduler config."},
     )
     replica_scheduler_config: BaseReplicaSchedulerConfig = field(
-        default_factory=SarathiSchedulerConfig,
+        default_factory=VllmSchedulerConfig,
         metadata={"help": "Replica scheduler config."},
     )
-
+    
     def __post_init__(self):
-       
-        self.num_replicas = len(self.replica_configs)
+        # Update replica configs with all parameters
+        self.replica_configs = default_replica_configs(
+            a100_count=self.a100_count,
+            h100_count=self.h100_count,
+            tensor_parallel_size=self.tensor_parallel_size,
+            pipeline_size=self.pipeline_size
+        )
+        # Update num_replicas to match total GPU count
+        self.num_replicas = self.a100_count + self.h100_count
 
 
 @dataclass
@@ -691,7 +714,7 @@ class SimulationConfig(ABC):
         metadata={"help": "Cluster config."},
     )
     request_generator_config: BaseRequestGeneratorConfig = field(
-        default_factory=SyntheticRequestGeneratorConfig,
+        default_factory=TraceRequestGeneratorConfig,
         metadata={"help": "Request generator config."},
     )
     execution_time_predictor_config: BaseExecutionTimePredictorConfig = field(
